@@ -1,0 +1,83 @@
+// Initialize canvas and variables
+const canvas = document.getElementById('digit-canvas');
+const context = canvas.getContext('2d');
+const clearButton = document.getElementById('clear-btn');
+const predictionResult = document.getElementById('prediction-result');
+
+canvas.width = 280;
+canvas.height = 280;
+
+// Drawing state variables
+let drawing = false;
+let lastX = 0;
+let lastY = 0;
+
+// Initialize TensorFlow.js model
+let model;
+
+async function loadModel() {
+    // Load the pre-trained MNIST model or your own model from TensorFlow.js
+    model = await tf.loadLayersModel('model/model.json'); // Change the path to where your model is hosted
+    console.log("Model loaded successfully.");
+}
+
+// Start drawing on canvas
+canvas.addEventListener('mousedown', (e) => {
+    drawing = true;
+    lastX = e.offsetX;
+    lastY = e.offsetY;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!drawing) return;
+    draw(e.offsetX, e.offsetY);
+});
+
+canvas.addEventListener('mouseup', () => {
+    drawing = false;
+    predictDigit();
+});
+
+canvas.addEventListener('mouseleave', () => {
+    drawing = false;
+});
+
+// Draw function to draw on the canvas
+function draw(x, y) {
+    context.beginPath();
+    context.moveTo(lastX, lastY);
+    context.lineTo(x, y);
+    context.strokeStyle = 'black';
+    context.lineWidth = 10;
+    context.lineCap = 'round';
+    context.stroke();
+    lastX = x;
+    lastY = y;
+}
+
+// Clear the canvas
+clearButton.addEventListener('click', () => {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    predictionResult.textContent = "Draw a digit above to see prediction.";
+});
+
+// Pre-process image for prediction
+function preprocessCanvas() {
+    // Convert canvas to tensor and normalize it
+    let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    let tensor = tf.browser.fromPixels(imageData).mean(2).toFloat().div(tf.scalar(255));
+    tensor = tensor.expandDims(0).expandDims(-1);
+    return tensor;
+}
+
+// Predict digit using the model
+async function predictDigit() {
+    const tensor = preprocessCanvas();
+    const prediction = await model.predict(tensor).data();
+    const predictedDigit = prediction.indexOf(Math.max(...prediction));
+    const confidence = (Math.max(...prediction) * 100).toFixed(2);
+    predictionResult.textContent = `Predicted Digit: ${predictedDigit} (Confidence: ${confidence}%)`;
+}
+
+// Load model on page load
+loadModel();
